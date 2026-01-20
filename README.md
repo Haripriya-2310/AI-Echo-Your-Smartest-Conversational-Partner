@@ -9,4 +9,4 @@ Python | Pandas | NumPy | Scikit-learn | SpaCy | Matplotlib | Seaborn | WordClou
 
 ## Technical Tags
 
-NLP | Sentiment Analysis | Text Classification | Machine Learning | Data Visualization | Streamlit Deployment | EDA
+NLP | Sentiment Analysis | Text Classification | Machine Learning | Data Visualization | Streamlit Deployment | EDA | Deep Learning
