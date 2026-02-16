@@ -208,7 +208,7 @@ if menu == "📊 Sentiment Analysis Insights":
         ax.set_title(title)
         ax.set_xlabel(col.capitalize())
         ax.set_ylabel("Number of Reviews")
-        ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+        ax.tick_params(axis='x', rotation=45)
         st.pyplot(fig)
 
     plot_categorical("location", "Location-wise Sentiment Distribution")
