@@ -86,6 +86,16 @@ if menu == "🔮 Enter Review":
 
             label_map = {0: "Negative 😡", 1: "Neutral 😐", 2: "Positive 😊"}
 
+            # max_p = np.max(proba)
+            
+            # # Neutral thresholding applied to handle class imbalance
+            # if max_p < 0.45:
+            #     predicted_label = "Neutral 😐"
+            # else:
+            #     pred = np.argmax(proba)
+            #     predicted_label = label_map[pred]
+
+            # st.success(f"Predicted Sentiment: **{predicted_label}**")
             st.success(f"Predicted Sentiment: **{label_map[pred]}**")
             st.write("Prediction Confidence:")
             st.bar_chart(pd.Series(proba, index=label_map.values()))
@@ -93,6 +103,7 @@ if menu == "🔮 Enter Review":
 
 
 # Add Sentiment Predictions to Dataset
+
 @st.cache_data
 def add_predictions(df):
     vectors = tfidf.transform(df['review'].astype(str))
@@ -203,7 +214,7 @@ if menu == "📊 Sentiment Analysis Insights":
     )
 
     def plot_categorical(col, title):
-        fig, ax = plt.subplots(figsize=(10, 5))
+        fig, ax = plt.subplots(figsize=(14, 6))
         sns.countplot(data=df, x=col, hue='predicted_label', ax=ax)
         ax.set_title(title)
         ax.set_xlabel(col.capitalize())
@@ -219,7 +230,7 @@ if menu == "📊 Sentiment Analysis Insights":
     st.header("8️⃣ Is there a difference in sentiment across platforms (Web vs Mobile)?")
     st.write(
         "This comparison helps identify whether users on different platforms "
-        "(such as Web or Mobile) report different sentiment patterns."
+        "report different sentiment patterns."
     )
 
     plot_categorical("platform", "Platform-wise Sentiment Comparison")
