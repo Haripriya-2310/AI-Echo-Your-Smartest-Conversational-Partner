@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import base64 
 import spacy
 import pickle
 import matplotlib.pyplot as plt
@@ -16,9 +17,23 @@ nlp = spacy.load("en_core_web_sm")
 
 st.set_page_config(page_title="AI Echo – Sentiment Analysis",layout="wide")
 
-st.title("💬 AI Echo: Your Smartest Conversational Partner")
+# Setting background image
 
-st.subheader("Sentiment Analysis & Insight-Driven Review Dashboard")
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: url("https://www.aimtechnologies.co/wp-content/uploads/2024/01/Sentiment-Analysis-Techniques.jpeg");
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    </style>
+    """, unsafe_allow_html=True
+)
+
+#Title
+st.title("💬 AI Echo: Your Smartest Conversational Partner")
 
 # Load Model & Vectorizer 
 
@@ -75,194 +90,152 @@ menu = st.sidebar.selectbox(
 if menu == "🔮 Enter Review":
     st.header("🔮 Predict Sentiment for New Review")
 
-    user_review = st.text_area("Enter a review:")
+    user_input = st.text_area("Enter your review here:")
 
-    if st.button("Analyze Sentiment"):
-        if user_review.strip():
-            processed_review = spacy_preprocess(user_review)
-            vec = tfidf.transform([processed_review])
-            pred = model.predict(vec)[0]
-            proba = model.predict_proba(vec)[0]
+    if st.button("Predict Sentiment"):
+        if user_input.strip() == "":
+            st.warning("Please enter some text for prediction.")
+        else:
+            # Preprocess user input
+            input_processed = spacy_preprocess(user_input)
 
-            label_map = {0: "Negative 😡", 1: "Neutral 😐", 2: "Positive 😊"}
+            # Vectorize
+            input_tfidf = tfidf.transform([input_processed])
 
-            # max_p = np.max(proba)
-            
-            # # Neutral thresholding applied to handle class imbalance
-            # if max_p < 0.45:
-            #     predicted_label = "Neutral 😐"
-            # else:
-            #     pred = np.argmax(proba)
-            #     predicted_label = label_map[pred]
+            # Predict
+            proba = model.predict_proba(input_tfidf)[0]
+            positive_keywords = [
+                "awesome", "excellent", "great", "amazing",
+                "love", "perfect", "satisfied", "happy"
+            ]
 
-            # st.success(f"Predicted Sentiment: **{predicted_label}**")
-            st.success(f"Predicted Sentiment: **{label_map[pred]}**")
-            st.write("Prediction Confidence:")
-            st.bar_chart(pd.Series(proba, index=label_map.values()))
+            negative_keywords = [
+                "bad", "worst", "terrible", "awful",
+                "poor", "hate", "disappointed"
+            ]
 
+            neutral_keywords = [
+                "okay", "average", "fine", "decent",
+                "nothing special", "works", "acceptable"
+            ]
 
+            text = user_input.lower()
 
-# Add Sentiment Predictions to Dataset
+            if any(w in text for w in positive_keywords):
+                prediction = 2  # Positive
+            elif any(w in text for w in negative_keywords):
+                prediction = 0  # Negative
+            elif any(w in text for w in neutral_keywords):
+                prediction = 1  # Neutral
+            elif proba[1] >= 0.35:
+                prediction = 1  # Neutral (probability-based)
+            else:
+                prediction = np.argmax(proba)
 
-@st.cache_data
-def add_predictions(df):
-    vectors = tfidf.transform(df['review'].astype(str))
-    preds = model.predict(vectors)
-    df['predicted_sentiment'] = preds
-    df['predicted_label'] = df['predicted_sentiment'].map({
-        0: "Negative", 1: "Neutral", 2: "Positive"
-    })
-    return df
+            sentiment_map = {0: "Negative 😡", 1: "Neutral 😐", 2: "Positive 😊"}
+            pred_sentiment = sentiment_map[prediction]
+                    
 
-df = add_predictions(df)
-
+            # Display text
+            st.write(f"### 🔮 Predicted Sentiment: **{pred_sentiment}**")
 
 # 📊 DASHBOARD QUESTIONS
 
 if menu == "📊 Sentiment Analysis Insights":
 
-    st.title("Key Questions for Sentiment Analysis")
+    st.header("SENTIMENT ANALYSIS INSIGHTS")
 
-    # ---------- Q1:Overall Sentiment Distribution ----------
-    st.header("1️⃣ What is the overall sentiment of user reviews?")
-    st.write(
-        "This chart shows the percentage distribution of **Positive, Neutral, and Negative** reviews.")
-
-    sentiment_dist = df['predicted_label'].value_counts(normalize=True) * 100
-    st.bar_chart(sentiment_dist)
-
-    st.divider()
+    #  ---------- Q1:Overall Sentiment Distribution ----------
+    with st.expander(" 1. What is the overall sentiment of user reviews?"):
+        sentiment_counts = df['sentiment'].value_counts(normalize=True).round(2) * 100
+        st.bar_chart(sentiment_counts)
 
     # ---------- Q2:Sentiment vs Rating ----------
-    st.header("2️⃣ How does sentiment vary by rating?")
-    st.write(
-        "This analysis compares star ratings with predicted sentiment to identify mismatches "
-        "(e.g., negative sentiment in high ratings)."
-    )
-
-    fig, ax = plt.subplots()
-    sns.countplot(data=df, x='rating', hue='predicted_label', ax=ax)
-    ax.set_xlabel("Rating")
-    ax.set_ylabel("Number of Reviews")
-    st.pyplot(fig)
-
-    st.divider()
-
-    # ---------- Q3:Keywords per Sentiment ----------
-    st.header("3️⃣ What keywords are commonly used in each sentiment?")
-    st.write(
-        "A word cloud showing the most frequent words used in reviews for the selected sentiment.")
-
-    choice = st.selectbox("Choose Sentiment", df['predicted_label'].unique())
-    text = " ".join(df[df['predicted_label'] == choice]['review'])
-
-    wc = WordCloud(width=800, height=400, background_color='white').generate(text)
-    fig, ax = plt.subplots()
-    ax.imshow(wc)
-    ax.axis('off')
-    st.pyplot(fig)
-
-    st.divider()
-
-    # ---------- Q4: Sentiment Trend Over Time ----------
-    st.header("4️⃣ How does sentiment change over time?")
-    st.write(
-        "This trend analysis shows how user sentiment evolves month by month.")
-
-    df['month'] = df['date'].dt.to_period('M').astype(str)
-    trend = df.groupby(['month', 'predicted_label']).size().unstack().fillna(0)
-
-    st.line_chart(trend)
-
-    st.divider()
-
-    # ---------- Q5: Verified vs Non-Verified Users ----------
-    st.header("5️⃣ Is sentiment different for verified vs non-verified users?")
-    st.write(
-        "This comparison highlights sentiment differences between verified purchasers and non-verified users.")
-
-    fig, ax = plt.subplots()
-    sns.countplot(data=df, x='verified_purchase', hue='predicted_label', ax=ax)
-    ax.set_xlabel("Verified Purchase")
-    ax.set_ylabel("Number of Reviews")
-    st.pyplot(fig)
-
-    st.divider()
-
-    # ---------- Q6: Review Length vs Sentiment ----------
-    st.header("6️⃣ Does review length vary by sentiment?")
-    st.write(
-        "This box plot compares the length of reviews across different sentiment categories.")
-
-    df['review_length'] = df['review'].apply(lambda x: len(str(x).split()))
-
-    fig, ax = plt.subplots()
-    sns.boxplot(data=df, x='predicted_label', y='review_length', ax=ax)
-
-    ax.set_xlabel("Sentiment")
-    ax.set_ylabel("Review Length (Number of Words)")
-    ax.set_title("Review Length Distribution by Sentiment")
-
-    st.pyplot(fig)
-
-
-    # ---------- Q7:Sentiment by Location ----------
-    st.header("7️⃣ Which locations show the most positive or negative sentiment?")
-    st.write(
-        "This analysis highlights geographic regions where users express the strongest "
-        "positive or negative sentiment, helping identify location-based experience issues."
-    )
-
-    def plot_categorical(col, title):
-        fig, ax = plt.subplots(figsize=(14, 6))
-        sns.countplot(data=df, x=col, hue='predicted_label', ax=ax)
-        ax.set_title(title)
-        ax.set_xlabel(col.capitalize())
+    with st.expander("2. How does sentiment vary by rating?"):
+        fig, ax = plt.subplots()
+        sns.countplot(data=df, x='rating', hue='sentiment', ax=ax)
+        ax.set_xlabel("Rating")
         ax.set_ylabel("Number of Reviews")
-        ax.tick_params(axis='x', rotation=45)
         st.pyplot(fig)
 
-    plot_categorical("location", "Location-wise Sentiment Distribution")
+       
+    # ---------- Q3:Keywords per Sentiment ----------
+    with st.expander("3. Which keywords are most associated with each sentiment class?"):
+        choice = st.selectbox("Choose Sentiment", df['sentiment'].unique())
+        text = ' '.join(df[df['sentiment'] == choice]['review'].astype(str))
+        wc = WordCloud(width=800, height=400, background_color='white').generate(text)
+        fig, ax = plt.subplots()
+        ax.imshow(wc)
+        ax.axis('off')
+        st.pyplot(fig)
 
-    st.divider()
+
+    # ---------- Q4: Sentiment Trend Over Time ----------
+    with st.expander("4. How has sentiment changed over time?"):
+        df['month'] = df['date'].dt.to_period('M').astype(str)
+        trend = df.groupby(['month', 'sentiment']).size().unstack().fillna(0)
+        st.line_chart(trend)
+
+
+    # ---------- Q5: Verified vs Non-Verified Users ----------
+    with st.expander("5. Do verified users tend to leave more positive or negative reviews?"):
+        fig, ax = plt.subplots()
+        sns.countplot(data=df, x='verified_purchase', hue='sentiment', ax=ax)
+        ax.set_xlabel("Verified Purchase")
+        ax.set_ylabel("Number of Reviews")
+        st.pyplot(fig)
+
+    # ---------- Q6: Review Length vs Sentiment ----------
+    with st.expander("6. Are longer reviews more likely to be negative or positive?"):
+        
+        df['review_length'] = df['review'].apply(lambda x: len(str(x).split()))
+
+        fig, ax = plt.subplots()
+        sns.boxplot(data=df, x='sentiment', y='review_length', ax=ax)
+
+        ax.set_xlabel("Sentiment")
+        ax.set_ylabel("Review Length (Number of Words)")
+        ax.set_title("Review Length Distribution by Sentiment")
+
+        st.pyplot(fig)
+
+    #  ---------- Q7:Sentiment by Location ----------
+    with st.expander("7. Which locations show the most positive or negative sentiment?"):
+        if 'location' in df.columns:
+            st.bar_chart(df.groupby('location')['sentiment'].value_counts(normalize=True).unstack().fillna(0))
+        else:
+            st.info("Location column not found.")
 
     # ---------- Q8:Platform-wise Sentiment ----------
-    st.header("8️⃣ Is there a difference in sentiment across platforms (Web vs Mobile)?")
-    st.write(
-        "This comparison helps identify whether users on different platforms "
-        "report different sentiment patterns."
-    )
+    with st.expander("8. Is there a difference in sentiment across platforms?"):
+        if {'platform', 'sentiment'}.issubset(df.columns):
 
-    plot_categorical("platform", "Platform-wise Sentiment Comparison")
-
-    st.divider()
+            plt.figure(figsize=(8, 5))
+            sns.countplot(data=df, x='platform',hue='sentiment')
+            plt.xlabel("Platform")
+            plt.ylabel("Number of Reviews")
+            plt.title("Sentiment Distribution Across Platforms")
+            plt.legend(title="Sentiment")
+            st.pyplot(plt)
+        else:
+            st.info("Platform or sentiment column not found.")
 
     # ---------- Q9: Version-wise Sentiment ----------
-    st.header("9️⃣ Which ChatGPT versions are associated with higher or lower sentiment?")
-    st.write(
-        "This visualization shows sentiment distribution across different ChatGPT versions "
-        "to assess whether version updates impacted user satisfaction."
-    )
-
-    plot_categorical("version", "Version-wise Sentiment Analysis")
-
-    st.divider()
+    with st.expander("9. Which ChatGPT versions are associated with higher/lower sentiment?"):
+        if 'version' in df.columns:
+            st.bar_chart(df.groupby('version')['sentiment'].value_counts(normalize=True).unstack().fillna(0))
+        else:
+            st.info("ChatGPT version column not found.")
 
     # ---------- Q10:Common Negative Feedback Themes ----------
-    st.header("🔟 What are the most common negative feedback themes?")
-    st.write(
-        "Frequent keywords from negative reviews are extracted to identify recurring "
-        "pain points and user complaints."
-    )
-
-    neg_text = " ".join(df[df['predicted_label'] == "Negative"]['review'])
-
     from collections import Counter
     import re
+    with st.expander("10. What are the most common negative feedback themes?"):
+        neg_text = " ".join(df[df['sentiment'] == "Negative"]['review'])
 
-    words = re.findall(r'\b\w+\b', neg_text.lower())
-    common = Counter(words).most_common(20)
+        words = re.findall(r'\b\w+\b', neg_text.lower())
+        common = Counter(words).most_common(20)
 
-    st.dataframe(
-        pd.DataFrame(common, columns=["Keyword", "Frequency"])
-    )
+        st.dataframe(
+            pd.DataFrame(common, columns=["Keyword", "Frequency"])
+        )
